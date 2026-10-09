@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.local
+backend/dist/
+frontend/dist/
+coverage/
+tmp/
+clip2gif-staging/
+*.log
+.DS_Store
+Thumbs.db

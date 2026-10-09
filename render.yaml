@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: clip2gif-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: TEMP_DIR
+        value: /tmp/clip2gif
+      - key: MAX_UPLOAD_MB
+        value: 100
+      - key: MAX_SOURCE_DURATION_SECONDS
+        value: 600
+      - key: MAX_CLIP_DURATION_SECONDS
+        value: 120
+      - key: MAX_GIF_OUTPUT_MB
+        value: 50
+      - key: MAX_ACTIVE_CONVERSIONS
+        value: 1
+      - key: MAX_QUEUED_JOBS
+        value: 3
+      - key: TEMP_FILE_TTL_MINUTES
+        value: 30
+      - key: JOB_TIMEOUT_SECONDS
+        value: 900
+      - key: CLEANUP_INTERVAL_MINUTES
+        value: 5
+    healthCheckPath: /api/health
+
+  - type: web
+    name: clip2gif-frontend
+    runtime: static
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false
