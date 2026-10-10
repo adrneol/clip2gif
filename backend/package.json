@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
+    "prestart": "node -e \"if(!require('fs').existsSync('dist/server.js')){console.error('[clip2gif] dist/server.js not found - the production build never ran. Locally run: npm run build. On Render set Root Directory=backend and Build Command=npm install --include=dev && npm run build.');process.exit(1)}\"",
     "start": "node dist/server.js",
     "test": "vitest run",
     "test:integration": "vitest run tests/integration.test.ts",

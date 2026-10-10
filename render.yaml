@@ -1,4 +1,7 @@
 services:
+  # Backend only. The frontend is deployed to Vercel from frontend/
+  # (see README). Do NOT re-add a Render static site here — it would
+  # deploy a duplicate frontend.
   - type: web
     name: clip2gif-backend
     runtime: node
@@ -37,18 +40,3 @@ services:
       - key: DEFAULT_PRESET
         value: balanced
     healthCheckPath: /api/health
-
-  - type: web
-    name: clip2gif-frontend
-    runtime: static
-    rootDir: frontend
-    buildCommand: npm install --include=dev && npm run build
-    staticPublishPath: dist
-    envVars:
-      # Manual: set to the PUBLIC HTTPS URL of the backend Web Service
-      # (Dashboard > clip2gif-frontend > Environment), then redeploy so Vite
-      # embeds it at build time. Render's `fromService ... property: host`
-      # yields the INTERNAL hostname, which browsers cannot reach — do NOT
-      # use it here. sync:false keeps dashboard edits from being overwritten.
-      - key: VITE_API_BASE_URL
-        sync: false

@@ -103,7 +103,7 @@ Each app owns its environment. There is **no root `.env`** — the root `.env.ex
 | `NODE_ENV` | backend (runtime) | `backend/.env` | Render backend env (`production`) | dev-vs-prod behavior (localhost CORS fallback) |
 | `PORT` | backend (runtime) | `backend/.env` (`5000`) | Platform-provided by Render (do not hardcode) | Backend listening port |
 | `FRONTEND_ORIGIN` | backend (runtime) | `backend/.env` (`http://localhost:5173`) | Render backend env → public frontend URL | CORS allowlist (never `*`) |
-| `VITE_API_BASE_URL` | frontend (**build-time**) | `frontend/.env.development.local` (`http://localhost:5000`) | Render Static Site env → public backend URL, then **rebuild** | API base embedded in client bundle |
+| `VITE_API_BASE_URL` | frontend (**build-time**) | `frontend/.env.development.local` (`http://localhost:5000`) | Vercel project env → public backend URL, then **redeploy** | API base embedded in client bundle |
 | `TEMP_DIR` | backend (runtime) | `backend/.env` (empty = OS tmp fallback) | Render backend env (`/tmp/clip2gif`) | Ephemeral job directory |
 | `MAX_UPLOAD_MB` | backend | `backend/.env` | Render backend env | Upload cap (default 100) |
 | `MAX_SOURCE_DURATION_SECONDS` | backend | `backend/.env` | Render backend env | Source cap (default 600) |
@@ -116,15 +116,15 @@ Each app owns its environment. There is **no root `.env`** — the root `.env.ex
 Rules:
 
 - **Backend** loads `backend/.env` via a path resolved from the backend package itself, so it works from any working directory and in compiled `dist/` output. Real env vars (Render, shell, tests) always win — dotenv never overrides them; a missing file (production) is a no-op. Invalid values fail fast at startup with a clear error.
-- **Frontend** uses plain Vite conventions (no extra dotenv code): `frontend/.env.development.local` for local dev, Render Static Site env for production. `VITE_*` values are **public build-time config baked into the JS bundle — never secrets**.
+- **Frontend** uses plain Vite conventions (no extra dotenv code): `frontend/.env.development.local` for local dev, Vercel project env for production. `VITE_*` values are **public build-time config baked into the JS bundle — never secrets**.
 - Local `.env` files are git-ignored; `*.env.example` templates are committed.
 - Local dev never touches production: frontend `http://localhost:5173` → backend `http://localhost:5000` (direct URL from `.env.development.local`; the Vite `/api` proxy is a fallback when the variable is empty).
 
 Production wiring (manual — Render Blueprint cannot safely auto-wire a **public** backend URL; `fromService … property: host` yields the internal hostname, which browsers can't reach):
 
 1. Deploy the backend, copy its public URL (`https://<name>.onrender.com`).
-2. Render Dashboard → **clip2gif-frontend Static Site → Environment** → set `VITE_API_BASE_URL` to that URL → **Save + redeploy** (Vite embeds it at build time; changing it requires a fresh build).
-3. Render Dashboard → **clip2gif-backend → Environment** → set `FRONTEND_ORIGIN` to the frontend's public URL.
+2. Vercel project → **Settings → Environment Variables** → set `VITE_API_BASE_URL` to that URL → **redeploy** (Vite embeds it at build time; changing it requires a fresh build).
+3. Render Dashboard → **clip2gif-backend → Environment** → set `FRONTEND_ORIGIN` to the Vercel frontend's public URL.
 4. Verify: `https://<backend>/api/health` → `{"success":true,…}`; then convert once on the live frontend.
 
 Troubleshooting CORS/API-URL errors:
@@ -136,18 +136,27 @@ Troubleshooting CORS/API-URL errors:
 
 ## Render deployment (free tier)
 
-Architecture: **Static Site (frontend)** + **Free Web Service (backend)** + ephemeral temp FS. No DB, no disk, no object storage.
+Architecture: **Render Web Service (backend)** + **Vercel (frontend)** + ephemeral temp FS. No DB, no disk, no object storage. `render.yaml` defines the backend service only — there is intentionally no Render static site, so no duplicate frontend is deployed.
 
-1. Push this repo to GitHub.
-2. In Render, **New → Blueprint**, select the repo (uses `render.yaml`), or create services manually:
-   - Backend: Web Service, Root Directory `backend`, Build `npm install --include=dev && npm run build`, Start `npm run start`. Health check `/api/health`.
-   - Frontend: Static Site, Root Directory `frontend`, Build `npm install --include=dev && npm run build`, Publish `dist`.
-3. Backend env: `NODE_ENV=production`, `TEMP_DIR=/tmp/clip2gif`, `FRONTEND_ORIGIN=https://<your-frontend>.onrender.com`, plus limits as desired. `PORT` is provided by Render automatically.
-4. Frontend env: `VITE_API_BASE_URL=https://<your-backend>.onrender.com` (rebuild after setting).
-5. Deploy backend first, verify `https://<backend>/api/health` → `{"success":true,...}`, then deploy frontend.
-6. Do a real conversion on the live URL before sharing.
+Use these exact backend settings (Blueprint via `render.yaml`, or the same values manually):
 
-Troubleshooting: build fails → check Node version ≥18 and both `package.json` installs; FFmpeg missing → `ffmpeg-static`/`ffprobe-static` postinstall must run on Linux (check logs for `exists=true`); CORS errors → `FRONTEND_ORIGIN` must exactly match the frontend URL; cold starts → first load can take ~1 min, the UI shows a wake-up notice; lost jobs after deploy/restart → expected (in-memory + ephemeral), start again.
+- Repository: `https://github.com/adrneol/clip2gif`, branch `main`
+- Root Directory: `backend`
+- Build Command: `npm install --include=dev && npm run build` (builds `backend/dist/server.js` via `tsc`; `--include=dev` is required because `NODE_ENV=production` would otherwise skip `typescript`)
+- Start Command: `npm run start` (runs `node dist/server.js` relative to `backend/`)
+- Health Check Path: `/api/health` (real endpoint, verified in `backend/src/routes/api.ts`)
+- Environment: `NODE_ENV=production`, `TEMP_DIR=/tmp/clip2gif`, `DEFAULT_PRESET=balanced`, plus limits as desired. `PORT` is provided by Render automatically — never hardcode it. `FRONTEND_ORIGIN` ← set to the real Vercel frontend URL **after** deploying the frontend (leave the placeholder until then; localhost origins only work in non-production builds).
+
+Vercel frontend: set `VITE_API_BASE_URL` to the public Render backend URL (`https://<your-backend>.onrender.com`) in the Vercel project settings and redeploy (Vite embeds it at build time).
+
+1. Push `main` to GitHub.
+2. Render → **New → Blueprint** (or Web Service with the settings above).
+3. Confirm the build log shows `tsc` completing and `dist/server.js` emitted.
+4. Verify `https://<backend>/api/health` → `{"success":true,...}` and `/api/limits` shows production values.
+5. Deploy the frontend to Vercel, then set `FRONTEND_ORIGIN` on the backend to the Vercel URL.
+6. Do a real conversion on the live frontend before sharing.
+
+Troubleshooting: `Cannot find module '.../backend/dist/server.js'` at startup → the production build never ran (most common cause: manual service with an empty/wrong Build Command, or the Blueprint not applied). Fix the Build Command above and redeploy; `npm run start` now also fails fast with this explanation instead of a bare MODULE_NOT_FOUND. Build fails → check Node version ≥18 and `--include=dev`; FFmpeg missing → `ffmpeg-static`/`ffprobe-static` must install the Linux binaries (check logs for `exists=true`; Render runtime availability is otherwise unverified — see Known limitations); CORS errors → `FRONTEND_ORIGIN` must exactly match the Vercel origin; cold starts → first load can take ~1 min, the UI shows a wake-up notice; lost jobs after deploy/restart → expected (in-memory + ephemeral), start again.
 
 **Free-tier notes:** 1 conversion at a time, conservative 480px/10fps defaults, processing may take longer than playback (a 60s clip is supported but not guaranteed fast). No keep-alive hacks — sleeping is normal.
 
