@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install (reproducible)
+        run: npm ci
+        working-directory: backend
+      - name: Production build (self-verifying, fails if dist/server.js missing)
+        run: npm run build
+        working-directory: backend
+      - name: Verify entry point
+        run: node scripts/ensure-dist.js --check
+        working-directory: backend
+      - name: Backend tests (incl. real FFmpeg conversion + deploy contract)
+        run: npm test
+        working-directory: backend
+      - name: 60-second conversion test
+        run: npm run test:long
+        working-directory: backend
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install (reproducible)
+        run: npm ci
+        working-directory: frontend
+      - name: Typecheck
+        run: npm run typecheck
+        working-directory: frontend
+      - name: Frontend tests
+        run: npm test
+        working-directory: frontend
+      - name: Production build
+        run: npm run build
+        working-directory: frontend

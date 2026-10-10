@@ -2,6 +2,12 @@ services:
   # Backend only. The frontend is deployed to Vercel from frontend/
   # (see README). Do NOT re-add a Render static site here — it would
   # deploy a duplicate frontend.
+  #
+  # IMPORTANT: services created MANUALLY in the Render Dashboard do NOT
+  # inherit changes to this file. If your service was created manually,
+  # apply the Root Directory / Build Command / Start Command / Health Check
+  # below by hand in Dashboard > clip2gif-backend > Settings, or create the
+  # service via New > Blueprint so this file stays authoritative.
   - type: web
     name: clip2gif-backend
     runtime: node
