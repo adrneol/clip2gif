@@ -8,12 +8,27 @@ export type JobStatus =
   | 'cancelled'
   | 'expired';
 
+export type PresetName = 'tiny' | 'compact' | 'balanced' | 'high' | 'max' | 'custom';
+export type DitherName = 'sierra2_4a' | 'floyd_steinberg' | 'bayer' | 'none';
+
+export interface PresetDef {
+  width: number;
+  fps: number;
+  colors: number;
+  dither: DitherName;
+  blurb: string;
+}
+
 export interface ConversionParams {
   start: number;
   end: number;
   width: number;
   fps: number;
-  quality: 'small' | 'balanced' | 'high';
+  colors: number;
+  dither: DitherName;
+  preset: PresetName;
+  optimize: boolean;
+  targetMB: number | null;
 }
 
 export interface JobDto {
@@ -36,6 +51,12 @@ export interface JobDto {
     height: number;
     duration: number;
     fps: number;
+    colors: number;
+    dither: DitherName;
+    preset: PresetName;
+    conversionMs: number;
+    attempts: number;
+    sizeNote: string | null;
   } | null;
   error: { code: string; message: string } | null;
   createdAt: number;
@@ -54,7 +75,12 @@ export interface Limits {
   allowedExtensions: string[];
   allowedWidths: number[];
   allowedFps: number[];
-  allowedQualities: string[];
+  allowedColors: number[];
+  allowedDithers: string[];
+  allowedPresets: string[];
+  presets: Record<string, PresetDef>;
+  defaultPreset: string;
+  suggestedTargetsMB: number[];
   tempFileTtlMinutes: number;
   jobTimeoutSeconds: number;
   maxActiveConversions: number;

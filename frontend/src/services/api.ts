@@ -30,15 +30,21 @@ export const api = {
   limits(): Promise<{ success: boolean; data: Limits }> {
     return req('/api/limits');
   },
-  createJob(file: File, params: { start: number; end: number; width: number; fps: number; quality: string }, onUploadProgress?: (pct: number) => void): Promise<{ success: boolean; data: { job: JobDto } }> {
+  createJob(file: File, params: { start: number; end: number; preset: string; width?: number; fps?: number; colors?: number; dither?: string; optimize?: boolean; targetMB?: number | null }, onUploadProgress?: (pct: number) => void): Promise<{ success: boolean; data: { job: JobDto } }> {
     const base = apiBase();
     const form = new FormData();
     form.append('video', file, file.name);
     form.append('start', String(params.start));
     form.append('end', String(params.end));
-    form.append('width', String(params.width));
-    form.append('fps', String(params.fps));
-    form.append('quality', params.quality);
+    form.append('preset', params.preset);
+    if (params.width !== undefined) form.append('width', String(params.width));
+    if (params.fps !== undefined) form.append('fps', String(params.fps));
+    if (params.colors !== undefined) form.append('colors', String(params.colors));
+    if (params.dither !== undefined) form.append('dither', params.dither);
+    if (params.optimize) {
+      form.append('optimize', 'true');
+      if (params.targetMB != null) form.append('targetMB', String(params.targetMB));
+    }
     onUploadProgress?.(5);
     return fetch(`${base}/api/jobs`, {
       method: 'POST',

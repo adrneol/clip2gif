@@ -74,14 +74,21 @@ export async function createJobHandler(req: Request, res: Response) {
     return sendError(res, 413, 'VIDEO_TOO_LONG', `Video is ${probe.duration.toFixed(0)}s, exceeding the ${config.maxSourceDurationSeconds}s limit.`);
   }
 
-  // Parse + validate conversion params
+  // Parse + validate conversion params.
+  // New clients send preset (+ colors/dither/optimize/targetMB, all required for 'custom').
+  // Phase-1 clients sent quality ('small'|'balanced'|'high') with width/fps — still accepted.
   const body = req.body as Record<string, unknown>;
-  const parsed = {
+  const parsed: Partial<import('../types/index.js').ConversionParams> & { quality?: string } = {
     start: Number(body.start ?? 0),
     end: Number(body.end ?? Math.min(probe.duration, config.maxClipDurationSeconds)),
-    width: Number(body.width ?? 480),
-    fps: Number(body.fps ?? 10),
-    quality: String(body.quality ?? 'balanced') as 'small' | 'balanced' | 'high',
+    preset: body.preset !== undefined && body.preset !== '' ? (String(body.preset) as import('../types/index.js').ConversionParams['preset']) : undefined,
+    width: body.width !== undefined && body.width !== '' ? Number(body.width) : undefined,
+    fps: body.fps !== undefined && body.fps !== '' ? Number(body.fps) : undefined,
+    colors: body.colors !== undefined && body.colors !== '' ? Number(body.colors) : undefined,
+    dither: body.dither !== undefined && body.dither !== '' ? (String(body.dither) as import('../types/index.js').ConversionParams['dither']) : undefined,
+    quality: body.quality !== undefined && body.quality !== '' ? String(body.quality) : undefined,
+    optimize: body.optimize === true || String(body.optimize ?? '').toLowerCase() === 'true',
+    targetMB: body.targetMB !== undefined && body.targetMB !== '' ? Number(body.targetMB) : undefined,
   };
   const v = validateParams(parsed, probe.duration);
   if (!v.ok || !v.params) {

@@ -4,13 +4,16 @@ services:
     runtime: node
     plan: free
     rootDir: backend
-    buildCommand: npm install && npm run build
+    # --include=dev: NODE_ENV=production is set on this service, and plain
+    # `npm install` would then skip devDependencies (typescript, @types/*),
+    # breaking `npm run build` (tsc). Render provides PORT automatically.
+    buildCommand: npm install --include=dev && npm run build
     startCommand: npm run start
     envVars:
       - key: NODE_ENV
         value: production
       - key: FRONTEND_ORIGIN
-        sync: false
+        sync: false # Manual: set to the public HTTPS URL of the frontend Static Site.
       - key: TEMP_DIR
         value: /tmp/clip2gif
       - key: MAX_UPLOAD_MB
@@ -31,15 +34,21 @@ services:
         value: 900
       - key: CLEANUP_INTERVAL_MINUTES
         value: 5
+      - key: DEFAULT_PRESET
+        value: balanced
     healthCheckPath: /api/health
 
   - type: web
     name: clip2gif-frontend
     runtime: static
-    plan: free
     rootDir: frontend
-    buildCommand: npm install && npm run build
+    buildCommand: npm install --include=dev && npm run build
     staticPublishPath: dist
     envVars:
+      # Manual: set to the PUBLIC HTTPS URL of the backend Web Service
+      # (Dashboard > clip2gif-frontend > Environment), then redeploy so Vite
+      # embeds it at build time. Render's `fromService ... property: host`
+      # yields the INTERNAL hostname, which browsers cannot reach — do NOT
+      # use it here. sync:false keeps dashboard edits from being overwritten.
       - key: VITE_API_BASE_URL
         sync: false

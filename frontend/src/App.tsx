@@ -14,7 +14,7 @@ import ConfirmDialog from './components/ConfirmDialog';
 import { useBackend } from './hooks/useBackend';
 import { useToasts } from './hooks/useToasts';
 import { api } from './services/api';
-import type { JobDto, Limits } from './types';
+import type { DitherName, JobDto, Limits, PresetName } from './types';
 
 const DEFAULT_LIMITS: Limits = {
   maxUploadMB: 100,
@@ -24,9 +24,20 @@ const DEFAULT_LIMITS: Limits = {
   maxGifOutputMB: 50,
   maxGifOutputBytes: 50 * 1024 * 1024,
   allowedExtensions: ['.mp4', '.mov', '.webm', '.avi', '.mkv', '.m4v'],
-  allowedWidths: [320, 480, 640],
-  allowedFps: [5, 8, 10, 12, 15],
-  allowedQualities: ['small', 'balanced', 'high'],
+  allowedWidths: [240, 320, 360, 480, 640, 800],
+  allowedFps: [5, 6, 8, 10, 12, 15, 20],
+  allowedColors: [64, 96, 128, 160, 192, 224, 256],
+  allowedDithers: ['sierra2_4a', 'floyd_steinberg', 'bayer', 'none'],
+  allowedPresets: ['tiny', 'compact', 'balanced', 'high', 'max', 'custom'],
+  presets: {
+    tiny: { width: 320, fps: 6, colors: 96, dither: 'bayer', blurb: '' },
+    compact: { width: 320, fps: 8, colors: 128, dither: 'bayer', blurb: '' },
+    balanced: { width: 480, fps: 10, colors: 192, dither: 'sierra2_4a', blurb: '' },
+    high: { width: 640, fps: 12, colors: 256, dither: 'sierra2_4a', blurb: '' },
+    max: { width: 640, fps: 15, colors: 256, dither: 'sierra2_4a', blurb: '' },
+  },
+  defaultPreset: 'balanced',
+  suggestedTargetsMB: [5, 10, 15, 20],
   tempFileTtlMinutes: 30,
   jobTimeoutSeconds: 900,
   maxActiveConversions: 1,
@@ -46,7 +57,26 @@ export default function App() {
   const [end, setEnd] = useState(10);
   const [width, setWidth] = useState(480);
   const [fps, setFps] = useState(10);
-  const [quality, setQuality] = useState<'small' | 'balanced' | 'high'>('balanced');
+  const [colors, setColors] = useState(192);
+  const [dither, setDither] = useState<DitherName>('sierra2_4a');
+  const [preset, setPreset] = useState<PresetName>('balanced');
+  const [optimize, setOptimize] = useState(false);
+  const [targetMB, setTargetMB] = useState(10);
+
+  // Adopt the server's default preset once limits arrive.
+  useEffect(() => {
+    if (!limits) return;
+    const dp = limits.defaultPreset as PresetName;
+    const def = limits.presets[dp];
+    if (def) {
+      setPreset(dp);
+      setWidth(def.width);
+      setFps(def.fps);
+      setColors(def.colors);
+      setDither(def.dither);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [limits !== null]);
   const [job, setJob] = useState<JobDto | null>(null);
   const [jobs, setJobs] = useState<JobDto[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -160,7 +190,9 @@ export default function App() {
     }
     setUploading(true);
     try {
-      const r = await api.createJob(file, { start, end, width, fps, quality });
+      const r = await api.createJob(file, preset === 'custom'
+        ? { start, end, preset, width, fps, colors, dither, optimize, targetMB: optimize ? targetMB : null }
+        : { start, end, preset, optimize, targetMB: optimize ? targetMB : null });
       setJob(r.data.job);
       push('info', 'Upload complete — conversion queued.');
       refreshList();
@@ -281,8 +313,16 @@ export default function App() {
                 </div>
                 <div className="grid content-start gap-4">
                   <GifSettings
-                    width={width} fps={fps} quality={quality} segSeconds={Math.max(0, end - start)} limits={lim}
-                    onChange={(w, f, q) => { setWidth(w); setFps(f); setQuality(q); }}
+                    preset={preset} width={width} fps={fps} colors={colors} dither={dither}
+                    optimize={optimize} targetMB={targetMB}
+                    segSeconds={Math.max(0, end - start)} limits={lim}
+                    onPreset={(p) => {
+                      setPreset(p);
+                      const def = lim.presets[p];
+                      if (def) { setWidth(def.width); setFps(def.fps); setColors(def.colors); setDither(def.dither); }
+                    }}
+                    onCustom={(w, f, c, d) => { setPreset('custom'); setWidth(w); setFps(f); setColors(c); setDither(d); }}
+                    onOptimize={(on, t) => { setOptimize(on); setTargetMB(t); }}
                   />
                   <div className="glass flex flex-wrap items-center gap-2 rounded-2xl p-4">
                     <button

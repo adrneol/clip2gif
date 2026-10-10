@@ -1,3 +1,7 @@
+import type { DitherName, PresetName } from '../config/index.js';
+
+export type { DitherName, PresetName };
+
 export type JobStatus =
   | 'uploading'
   | 'queued'
@@ -8,14 +12,23 @@ export type JobStatus =
   | 'cancelled'
   | 'expired';
 
-export type QualityPreset = 'small' | 'balanced' | 'high';
-
+/** Effective conversion settings. `preset` is the requested preset name;
+ *  width/fps/colors/dither are the ACTUAL values used (equal to the preset
+ *  canonical values unless the request overrode them, in which case the
+ *  backend reports preset 'custom'). */
 export interface ConversionParams {
   start: number;
   end: number;
   width: number;
   fps: number;
-  quality: QualityPreset;
+  colors: number;
+  dither: DitherName;
+  preset: PresetName;
+  /** Legacy Phase-1 field: accepted on input as an alias, normalized away. */
+  quality?: string;
+  optimize: boolean;
+  /** Desired ceiling in MB when optimize=true. Always <= MAX_GIF_OUTPUT_MB. */
+  targetMB: number | null;
 }
 
 export interface SourceMeta {
@@ -25,6 +38,23 @@ export interface SourceMeta {
   fps: number | null;
   sizeBytes: number;
   ext: string;
+}
+
+export interface OutputMeta {
+  sizeBytes: number;
+  width: number;
+  height: number;
+  duration: number;
+  fps: number;
+  colors: number;
+  dither: DitherName;
+  preset: PresetName;
+  /** Wall-clock encoding time in ms (all attempts summed). */
+  conversionMs: number;
+  /** Number of encode attempts (1 when size optimization is off). */
+  attempts: number;
+  /** Set when optimize=true but the target could not be reached. */
+  sizeNote: string | null;
 }
 
 export interface Job {
@@ -45,13 +75,7 @@ export interface Job {
   expiresAt: number | null;
   completedAt: number | null;
   error: { code: string; message: string } | null;
-  output: {
-    sizeBytes: number;
-    width: number;
-    height: number;
-    duration: number;
-    fps: number;
-  } | null;
+  output: OutputMeta | null;
   cancelled: boolean;
 }
 

@@ -18,15 +18,18 @@ describe('60-second segment conversion', () => {
     const tmp = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'c2g-long-'));
     const src = path.join(tmp, 'long.mp4');
     const out = path.join(tmp, 'out.gif');
+    const pal = path.join(tmp, 'palette.png');
     await generateTestVideo(src, 61, '128x96', 5);
     await convertToGif({
       input: src,
       output: out,
+      palette: pal,
       start: 1,
       duration: 60,
       width: 320,
       fps: 5,
-      quality: 'small',
+      colors: 128,
+      dither: 'bayer',
       threads: 1,
       timeoutMs: 600_000,
     });
